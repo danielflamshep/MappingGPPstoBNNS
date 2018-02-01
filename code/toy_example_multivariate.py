@@ -59,12 +59,12 @@ if __name__ == '__main__':
     iters = 500
     noise_var = 0.1
 
-    inputs = np.array([[-1.], [0.], [1.], [2.]])
+    inputs = np.array([[-1.], [1.], [3.], [5.]])
 
-    real_mean = np.array([0., 0., 0., 0.])
+    real_mean = np.array([0., 1., 2., 5.])
 
-    r = np.array([[1.0, 0.0, 0.0, 0.0],
-                  [1.0, 1.0, 0.0, 1.0],
+    r = np.array([[1.0, -1.0, 0.0, 0.0],
+                  [1.0, 3.0, -1.0, 1.0],
                   [0.0, 0.0, 1.0, 0.0],
                   [0.0, 0.0, 1.0, 1.0]])
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     print(real_cov)
 
     layer_sizes = [1, 100, 100, 1]
-    N_samples = 5000
+    N_samples = 2000
 
     fig = plt.figure(figsize=(8, 8), facecolor='white')
     gs = gridspec.GridSpec(3, 2
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     kls = []
     min_kls = []
 
-    def obj(params, t):
+    def obj(params, t, N_samples=N_samples):
         return kl_estimate(params, N_samples, inputs, layer_sizes, real_mean, real_cov)
 
     def init_bnn_params(layer_sizes, scale):
@@ -95,16 +95,6 @@ if __name__ == '__main__':
         mean = rs.randn(N_weights)
         log_std = np.zeros((N_weights,)) + scale
         return (mean, log_std)
-
-    def plot_contours(ax, params):
-        samples = sample_obs(params, N_samples, inputs, layer_sizes)
-        y_mean, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
-
-        approx_pdf = lambda x: mvn.logpdf(x, y_mean, y_cov)
-        real_pdf   = lambda x: mvn.logpdf(x, real_mean, real_cov)
-
-        plot_isocontours(ax, approx_pdf, colors='r', label='approx')
-        plot_isocontours(ax, real_pdf,   colors='b', label='true')
 
 
     def plot_lines(ax, params, inputs):
@@ -135,7 +125,7 @@ if __name__ == '__main__':
         ax.plot(min_kls)
 
     def callback_kl(prior_params, iter, g):
-        kl = obj(prior_params, iter)
+        kl = obj(prior_params, iter, N_samples=N_samples)
         kls.append(kl)
         min_kls.append(np.amin(kls))
         print("Iteration {} KL {} ".format(iter, kl))
@@ -157,6 +147,7 @@ if __name__ == '__main__':
         if iter % 10 == 0:
             samples = sample_obs(prior_params, N_samples, inputs, layer_sizes)
             y_mean, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
+            print(y_cov)
             print(y_cov - real_cov)
             print(y_mean - real_mean)
 
