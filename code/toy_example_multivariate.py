@@ -41,11 +41,11 @@ def shapes_and_num(layer_sizes):
 def sample_normal(mean, log_std, N_samples):
     return rs.randn(N_samples, mean.shape[0]) * np.exp(log_std) + mean
 
-def sample_obs(params, N_samples, x, layer_sizes, with_noist=True):
+def sample_obs(params, N_samples, x, layer_sizes, with_noise=False):
     mean, log_std = params
     bnn_weights = sample_normal(mean, log_std, N_samples)
     f_bnn = predictions(bnn_weights, x, layer_sizes)[:, :, 0]
-    if with_noist:
+    if with_noise:
         return f_bnn + noise_var * rs.randn(N_samples, x.shape[0])
     else:
         return f_bnn
@@ -53,6 +53,11 @@ def sample_obs(params, N_samples, x, layer_sizes, with_noist=True):
 def kl_estimate(params, N_samples, x, layer_sizes, mean, cov):
     y = sample_obs(params, N_samples, x, layer_sizes)
     return -entropy_estimate(y) - np.mean(mvn.logpdf(y, mean, cov))
+
+def expected_like(params, N_samples, x, layer_sizes, mean, chol):
+    y = sample_obs(params, N_samples, x, layer_sizes)
+    mu = np.dot(rs.randn(N_samples, mean.shape[0]), chol) + mean
+    return np.mean(np.array(map(lambda s: np.mean(mvn.logpdf(y, s, noise_var * np.eye(mean.shape[0]))), mu)))
 
 if __name__ == '__main__':
 
@@ -87,7 +92,8 @@ if __name__ == '__main__':
     min_kls = []
 
     def obj(params, t, N_samples=N_samples):
-        return kl_estimate(params, N_samples, inputs, layer_sizes, real_mean, real_cov)
+        # return kl_estimate(params, N_samples, inputs, layer_sizes, real_mean, real_cov)
+        return -expected_like(params, N_samples, inputs, layer_sizes, real_mean, r)
 
     def init_bnn_params(layer_sizes, scale):
         """initial mean and log std of q(w|phi) """
@@ -105,7 +111,7 @@ if __name__ == '__main__':
         for i in list(inputs):
             ixs.append(np.where(plot_inputs == i)[0])
 
-        f_bnn = sample_obs(params, n_functions, plot_inputs[:, None], layer_sizes, with_noist=False)
+        f_bnn = sample_obs(params, n_functions, plot_inputs[:, None], layer_sizes, with_noise=False)
         ax.plot(plot_inputs, f_bnn.T, color='green')
 
         for i in range(n_functions):
