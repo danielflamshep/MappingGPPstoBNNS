@@ -61,7 +61,7 @@ def sample_bnn(params, N_samples, x, layer_sizes, with_noist=False):
 
 
 def kl_estimate(params, N_samples, x, layer_sizes, mean, cov):
-    y = sample_obs(params, N_samples, x, layer_sizes)
+    y = sample_bnn(params, N_samples, x, layer_sizes)
     return -entropy_estimate(y) - np.mean(mvn.logpdf(y, mean, cov))
 
 
@@ -71,9 +71,8 @@ def expected_like(params, N_samples, x, layer_sizes, mean, chol):
 
     log_like = 0
     for nn_s in nn_samples:
-        for gp_s in gp_samples:
-            log_like = log_like + mvn.logpdf(nn_s, gp_s, noise_var * np.eye(mean.shape[0]))
-    return log_like / N_samples ** 2
+        log_like = log_like + np.mean(mvn.logpdf(gp_samples, nn_s, noise_var * np.eye(mean.shape[0])))
+    return log_like / N_samples
 
 
 def plot_isocontours(ax, func, xlimits=[-5, 5], ylimits=[-5, 5], numticks=1000, *args, **kwargs):
@@ -101,7 +100,7 @@ if __name__ == '__main__':
     print(real_cov)
 
     layer_sizes = [1, 10, 1]
-    N_samples = 2000
+    N_samples = 200
 
     fig = plt.figure(figsize=(8, 8), facecolor='white')
     ax1 = fig.add_subplot(221, frameon=False)
@@ -127,7 +126,7 @@ if __name__ == '__main__':
 
 
     def plot_contours(ax, params):
-        samples = sample_obs(params, N_samples, inputs, layer_sizes)
+        samples = sample_bnn(params, N_samples, inputs, layer_sizes)
         y_mean, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
 
         approx_pdf = lambda x: mvn.logpdf(x, y_mean, y_cov)
@@ -144,7 +143,7 @@ if __name__ == '__main__':
         ix_0 = np.where(plot_inputs == 0.)[0]
         ix_1 = np.where(plot_inputs == 1.)[0]
 
-        f_bnn = sample_obs(params, n_functions, plot_inputs[:, None], layer_sizes, with_noist=False)
+        f_bnn = sample_bnn(params, n_functions, plot_inputs[:, None], layer_sizes, with_noist=False)
 
         ax.plot(plot_inputs, f_bnn.T, color='green')
 
@@ -153,17 +152,18 @@ if __name__ == '__main__':
 
 
     def plot_heatmap(ax, params):
-        samples = sample_obs(params, N_samples, inputs, layer_sizes)
+        samples = sample_bnn(params, N_samples, inputs, layer_sizes)
         _, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
         ax.imshow(y_cov)
 
 
     def callback_kl(prior_params, iter, g):
+        print("Iteration {} KL {} ".format(iter, obj(prior_params, iter)))
         plot_lines(ax1, prior_params)
         plot_contours(ax2, prior_params)
         plot_heatmap(ax3, prior_params)
         ax4.imshow(real_cov)
-        print("Iteration {} KL {} ".format(iter, obj(prior_params, iter)))
+
 
         plt.draw()
         # plt.savefig(os.path.join(plotting_dir, 'contours_iteration_' + str(iter) + '.pdf'))
@@ -173,10 +173,11 @@ if __name__ == '__main__':
         ax3.cla()
 
         if iter % 10 == 0:
-            samples = sample_obs(prior_params, N_samples, inputs, layer_sizes)
+            samples = sample_bnn(prior_params, N_samples, inputs, layer_sizes)
             _, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
             print(y_cov - real_cov)
 
-
+    print("asdf")
     init_var_params = init_bnn_params(layer_sizes, scale=-1.5)
+    print("asdfadssafd")
     prior_params = adam(grad(obj), init_var_params, step_size=0.01, num_iters=iters, callback=callback_kl)
