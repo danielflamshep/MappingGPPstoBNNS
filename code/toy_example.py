@@ -69,10 +69,12 @@ def expected_like(params, N_samples, x, layer_sizes, mean, chol):
     nn_samples = sample_bnn(params, N_samples, x, layer_sizes)
     gp_samples = sample_full_normal(mean, chol, N_samples)
 
-    log_like = 0
+    log_like = 0.
     for nn_s in nn_samples:
-        log_like = log_like + np.mean(mvn.logpdf(gp_samples, nn_s, noise_var * np.eye(mean.shape[0])))
-    return log_like / N_samples
+        log_like = log_like + np.sum((gp_samples - nn_s)**2)
+    #     log_like = log_like + np.mean(mvn.logpdf(gp_samples, nn_s, noise_var * np.eye(mean.shape[0])))
+    return log_like/N_samples**2
+
 
 
 def plot_isocontours(ax, func, xlimits=[-5, 5], ylimits=[-5, 5], numticks=1000, *args, **kwargs):
@@ -100,7 +102,7 @@ if __name__ == '__main__':
     print(real_cov)
 
     layer_sizes = [1, 10, 1]
-    N_samples = 200
+    N_samples = 1000
 
     fig = plt.figure(figsize=(8, 8), facecolor='white')
     ax1 = fig.add_subplot(221, frameon=False)
@@ -114,7 +116,7 @@ if __name__ == '__main__':
 
     def obj(params, t):
         # return kl_estimate(params, N_samples, inputs, layer_sizes, real_mean, real_cov)
-        return -expected_like(params, N_samples, inputs, layer_sizes, real_mean, r)
+        return expected_like(params, N_samples, inputs, layer_sizes, real_mean, r)
 
 
     def init_bnn_params(layer_sizes, scale):
@@ -134,6 +136,9 @@ if __name__ == '__main__':
 
         plot_isocontours(ax, approx_pdf, colors='r', label='approx')
         plot_isocontours(ax, real_pdf, colors='b', label='true')
+
+        gp_samples = sample_full_normal(real_mean, r, N_samples)
+        ax.scatter(gp_samples[:, 0], gp_samples[:, 1], marker='x')
 
 
     def plot_lines(ax, params):
@@ -177,7 +182,5 @@ if __name__ == '__main__':
             _, y_cov = np.mean(samples, axis=0), np.cov(samples.T)
             print(y_cov - real_cov)
 
-    print("asdf")
     init_var_params = init_bnn_params(layer_sizes, scale=-1.5)
-    print("asdfadssafd")
     prior_params = adam(grad(obj), init_var_params, step_size=0.01, num_iters=iters, callback=callback_kl)
